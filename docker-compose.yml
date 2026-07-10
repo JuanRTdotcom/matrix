@@ -1,0 +1,57 @@
+# Los valores ${VAR} se leen del archivo .env ubicado junto a este docker-compose.yml.
+# Un único .env alimenta a los cuatro servicios (ver .env.example).
+services:
+  # API en Node.js (Express) — calcula estadísticas sobre las matrices Q y R.
+  node-api:
+    build:
+      context: ./node-api
+    container_name: node-api
+    environment:
+      - PORT=${NODE_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+    ports:
+      - "${NODE_PORT}:${NODE_PORT}"
+    networks:
+      - reto-net
+
+  # API en Go (Fiber) — recibe la matriz, valida y delega las estadísticas a Node. Emite el JWT.
+  go-api:
+    build:
+      context: ./go-api
+    container_name: go-api
+    environment:
+      - SERVER_PORT=${GATEWAY_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - TOKEN_EXPIRY_MINUTES=${TOKEN_EXPIRY_MINUTES}
+      - AUTH_USER=${AUTH_USER}
+      - AUTH_PASS=${AUTH_PASS}
+      # URL interna derivada del puerto: comunicación HTTP entre servicios en la red de Docker.
+      - NODE_API_URL=http://node-api:${NODE_PORT}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    depends_on:
+      - node-api
+    networks:
+      - reto-net
+
+  # Frontend (SvelteKit) — consume la API en Go.
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    environment:
+      - PORT=${FRONTEND_PORT}
+      # El navegador corre en el host: apunta al puerto publicado del gateway.
+      - PUBLIC_GO_API_URL=${PUBLIC_GO_API_URL}
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    depends_on:
+      - go-api
+    networks:
+      - reto-net
+
+networks:
+  reto-net:
+    driver: bridge
