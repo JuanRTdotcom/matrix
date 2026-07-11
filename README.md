@@ -1,112 +1,109 @@
-# Reto Técnico — Interseguro · Backend Developer 2026
+# 🧮 Reto Técnico — Interseguro · Backend Developer 2026
 
-Solución al Coding Challenge: dos APIs REST (Go + Node.js) que se comunican por HTTP,
-un frontend en Svelte que las consume, todo contenerizado con Docker y seguro con JWT.
+> Dos APIs (**Go** + **Node.js**) que se hablan por HTTP, un **frontend Svelte** que las usa,
+> todo con **Docker** y protegido con **JWT**.
+
+---
+
+## 🌐 Demo en vivo (Render)
+
+> [!IMPORTANT]
+> Están en el plan **gratis** de Render, así que se **duermen** cuando nadie las usa.
+> **Antes de probar**, abre los 3 enlaces para que "despierten" (tarda ~30–50s la primera vez).
+
+| Servicio | Enlace | Ábrelo primero |
+|----------|--------|:--------------:|
+| 🟦 **Frontend** (Svelte) | https://front-svelte-2vw2.onrender.com/ | 👉 |
+| 🐹 **API Go** (QR) | https://go-3sl1.onrender.com/ | 👉 |
+| 🟩 **API Node** (Stats) | https://node-7jwe.onrender.com/ | 👉 |
+
+**🔑 Login demo:** usuario `admin` · contraseña `admin123`
+
+---
+
+## 🗺️ Cómo funciona (de un vistazo)
 
 ```
-┌────────────┐  JWT   ┌──────────────┐  HTTP + JWT   ┌───────────────┐
-│  Frontend  │ ─────▶ │  API en Go   │ ────────────▶ │  API en Node  │
-│ (SvelteKit)│        │   (Fiber)    │   Q, R        │   (Express)   │
-│   :5173    │ ◀───── │  QR :3000    │ ◀──────────── │  Stats :4000  │
-└────────────┘        └──────────────┘  estadísticas └───────────────┘
+   👤 Usuario
+      │  1. login  → recibe 🔑 JWT
+      ▼
+┌─────────────┐   2. envía matriz A      ┌──────────────┐   3. manda Q y R (+🔑)   ┌───────────────┐
+│  🟦 Frontend │ ───────────────────────▶ │  🐹 API Go    │ ───────────────────────▶ │  🟩 API Node   │
+│  (SvelteKit)│                          │  QR: A = Q·R │                          │  Estadísticas │
+│    :5173    │ ◀─────────────────────── │    :3000     │ ◀─────────────────────── │     :4000     │
+└─────────────┘   5. { original, qr,     └──────────────┘   4. devuelve stats      └───────────────┘
+                       statistics }
 ```
 
-- **API en Go (`go-api`, :3000)** — recibe la matriz, calcula su **factorización QR**,
-  emite el JWT y envía `Q` y `R` a la API en Node.js. Es el punto de entrada del sistema.
-- **API en Node.js (`node-api`, :4000)** — recibe `Q` y `R` y calcula las estadísticas.
+1. 👤 El usuario **inicia sesión** → la API Go emite un **🔑 JWT**.
+2. 👤 Envía una **matriz** → la API Go calcula su **factorización QR** (`A = Q·R`).
+3. 🐹 La API Go manda `Q` y `R` (con el 🔑) a la API Node.
+4. 🟩 La API Node calcula las **estadísticas** y las devuelve.
+5. 🐹 La API Go responde al frontend con `{ original, qr, statistics }`.
 
-## Flujo funcional
+---
 
-1. El usuario inicia sesión en el frontend → la **API en Go** emite un **JWT**.
-2. El usuario envía una matriz → la **API en Go** calcula su **factorización QR** (`A = Q·R`).
-3. La **API en Go** envía `Q` y `R` (con el JWT) a la **API en Node.js**.
-4. La **API en Node.js** calcula las estadísticas y las devuelve.
-5. La **API en Go** responde al frontend con `{ original, qr, statistics }`.
+## 🧩 Qué hace cada pieza
 
-## Factorización QR (API en Go)
+| | Servicio | Puerto | Trabajo |
+|---|----------|:------:|---------|
+| 🐹 | **API Go** (Fiber) | `3000` | Emite el JWT · calcula la **factorización QR** · orquesta |
+| 🟩 | **API Node** (Express) | `4000` | Calcula **estadísticas** de `Q` y `R` |
+| 🟦 | **Frontend** (SvelteKit) | `5173` | UI: login + enviar matriz + ver resultados |
 
-Algoritmo **Gram-Schmidt modificado** (numéricamente más estable que el clásico), sin
-dependencias externas. `A = Q · R` con `Q` de columnas ortonormales y `R` triangular superior.
+**📐 Factorización QR** → algoritmo *Gram-Schmidt modificado* (más estable), sin librerías externas.
+`Q` con columnas ortonormales, `R` triangular superior.
 
-## Estadísticas (API en Node.js)
+**📊 Estadísticas** → máximo, mínimo, promedio, suma total y si alguna matriz es diagonal.
 
-Sobre las matrices `Q` y `R`: **valor máximo**, **valor mínimo**, **promedio**,
-**suma total** y si **alguna es diagonal**.
+---
 
-## Seguridad (JWT)
+## 🔒 Seguridad (JWT)
 
-- `POST /api/v1/auth/login` (Go) emite un JWT firmado con HS256.
-- Las rutas de negocio de **ambas** APIs exigen `Authorization: Bearer <token>`.
-- La API en Go **reenvía el mismo JWT** a la API en Node.js: la comunicación entre
-  servicios también está autenticada. Ambas comparten `JWT_SECRET`.
-- Credenciales de demo: **admin / admin123** (configurables por variables de entorno).
+- 🔑 `POST /api/v1/auth/login` (Go) emite un JWT firmado con **HS256**.
+- 🚧 Las rutas de negocio de **ambas** APIs exigen `Authorization: Bearer <token>`.
+- 🔁 La API Go **reenvía el mismo JWT** a la API Node → la comunicación entre servicios
+  también va autenticada. Comparten `JWT_SECRET`.
+- 👤 Credenciales demo: **admin / admin123** (configurables por variables de entorno).
 
-## Arquitectura — Clean Architecture
+---
 
-**Go** (`go-api/`): `controllers → usecases → repositories → models`. La configuración se
-carga y valida en `config/` y el ensamblado (inyección de dependencias + rutas + ciclo de
-vida) vive en `server/`. La dependencia externa (API en Node) se define como interfaz
-(`usecases.StatsRepository`) e implementa en `repositories/`. Los controladores dependen de
-abstracciones (`controllers.Processor`, `Authenticator`) — inversión de dependencias (SOLID).
+## ▶️ Cómo ejecutarlo en local
 
-**Node** (`node-api/src/`): `controllers → usecases → adapters → repository`, con
-`domain/` (entities + interfaces). El caso de uso depende de la interfaz del adaptador.
+### ⚙️ Configuración — un solo `.env`
 
-**Frontend** (`frontend/src/lib/`): misma separación — `domain / adapters / usecases /
-repository / enviroment` — la UI solo invoca casos de uso.
-
-## Cómo ejecutar
-
-### Configuración (un solo `.env`)
-
-Toda la configuración vive en **un único `.env` en la raíz**, junto al `docker-compose.yml`.
-Compose lo lee automáticamente y lo distribuye a los servicios por interpolación (`${VAR}`).
+Toda la config vive en **un `.env` en la raíz**, junto al `docker-compose.yml`.
+Compose lo lee solo y lo reparte a los servicios (`${VAR}`).
 
 ```bash
 cp .env.example .env    # ajusta secretos/puertos si hace falta
 ```
 
-### Opción A — Docker Compose (todo junto)
+### 🐳 Levantar todo con Docker
 
 ```bash
 docker compose up --build
 ```
 
-- Frontend:   http://localhost:5173
-- API Go:     http://localhost:3000
-- API Node:   http://localhost:4000
+| | URL |
+|---|-----|
+| 🟦 Frontend | http://localhost:5173 |
+| 🐹 API Go | http://localhost:3000 |
+| 🟩 API Node | http://localhost:4000 |
 
-### Opción B — Local (desarrollo)
+---
 
-`JWT_SECRET` es obligatorio (la API en Go aborta si falta). El resto usa valores por
-defecto que apuntan a `localhost`.
+## 🧪 Pruebas
 
 ```bash
-cd node-api && npm install && npm run dev              # :4000
-cd go-api   && JWT_SECRET=dev go run main.go           # :3000
-cd frontend && npm install && npm run dev              # :5173
+cd go-api   && go test ./...     # 🐹 unitarias (QR, orquestación, auth) + integración
+cd node-api && npm test          # 🟩 unitarias (stats) + integración (JWT, supertest)
 ```
 
-## Pruebas
-
-**API en Go** — unitarias (QR, orquestación con mocks, autenticación) + integración (rutas
-Fiber end-to-end con un stub de Node):
+### ⚡ Prueba rápida con cURL
 
 ```bash
-cd go-api && go test ./...
-```
-
-**API en Node.js** — unitarias (cálculo de estadísticas) + integración (endpoint con JWT,
-usando supertest):
-
-```bash
-cd node-api && npm test
-```
-
-## Prueba manual rápida (cURL)
-
-```bash
-# 1. Login
+# 1. Login → obtener token
 TOKEN=$(curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"admin123"}' | jq -r .data.token)
@@ -117,30 +114,53 @@ curl -s -X POST http://localhost:3000/api/v1/matrix/process \
   -d '{"matrix":[[12,-51,4],[6,167,-68],[-4,24,-41]]}' | jq
 ```
 
-## Endpoints
+---
 
-| Servicio | Método | Ruta                     | Auth | Descripción                                 |
-|----------|--------|--------------------------|------|---------------------------------------------|
-| Go       | GET    | `/`                      | —    | Healthcheck                                 |
-| Go       | POST   | `/api/v1/auth/login`     | —    | Emite JWT                                   |
-| Go       | POST   | `/api/v1/matrix/process` | JWT  | Factoriza (QR) y delega stats de Q,R a Node |
-| Node     | GET    | `/`                      | —    | Healthcheck                                 |
-| Node     | POST   | `/api/v1/statistics`     | JWT  | Estadísticas de un set de matrices          |
+## 🛣️ Endpoints
 
-## Despliegue en la nube
+| | Método | Ruta | 🔒 Auth | Qué hace |
+|---|--------|------|:------:|----------|
+| 🐹 Go | `GET`  | `/`                      | — | Healthcheck |
+| 🐹 Go | `POST` | `/api/v1/auth/login`     | — | Emite JWT |
+| 🐹 Go | `POST` | `/api/v1/matrix/process` | ✅ | Factoriza (QR) y delega stats a Node |
+| 🟩 Node | `GET`  | `/`                    | — | Healthcheck |
+| 🟩 Node | `POST` | `/api/v1/statistics`   | ✅ | Estadísticas de un set de matrices |
 
-Cada servicio produce una imagen Docker autónoma, lista para desplegar en cualquier
-proveedor (AWS ECS/App Runner, Google Cloud Run, Azure Container Apps, etc.). El
-`docker-compose.yml` define la red y las variables; en producción se sustituyen los
-secretos (`JWT_SECRET`, credenciales) por gestores de secretos del proveedor.
+---
 
-## Checklist del reto
+## 🏗️ Arquitectura — Clean Architecture
 
-- [x] API en Go con Fiber (factorización QR de la matriz)
-- [x] API en Node.js con Express (estadísticas de Q y R)
-- [x] Comunicación entre APIs por HTTP + JWT (Go → Node)
-- [x] Docker en cada servicio + `docker-compose`
-- [x] Frontend (SvelteKit) que consume las APIs *(opcional)*
-- [x] Seguridad con JWT *(opcional)*
-- [x] Pruebas unitarias e integración en ambas APIs *(opcional)*
-- [x] Clean architecture y documentación
+Cada proyecto separa responsabilidades en capas (la UI/controllers nunca tocan detalles de infraestructura):
+
+- **🐹 Go** — `controllers → usecases → repositories → models`. Config validada en `config/`,
+  ensamblado (DI + rutas + ciclo de vida) en `server/`. La dependencia externa (API Node) es
+  una interfaz (`usecases.StatsRepository`) → inversión de dependencias (SOLID).
+- **🟩 Node** — `controllers → usecases → adapters → repository`, con `domain/` (entities + interfaces).
+- **🟦 Frontend** — `domain / adapters / usecases / repository / enviroment`; la UI solo invoca casos de uso.
+
+---
+
+## ☁️ Despliegue en Render
+
+Cada servicio genera su **imagen Docker autónoma** → desplegable en cualquier proveedor.
+Aquí corre en **Render** (ver enlaces arriba ⬆️).
+
+**Cómo se desplegó:**
+
+1. 🌿 Cada proyecto se separó en su **propia rama** de Git.
+2. 📦 Cada rama se desplegó como un **proyecto/servicio independiente** en Render (uno por uno).
+3. 🔐 A cada proyecto se le cargaron sus **variables de entorno** — las mismas del `docker-compose.yml`.
+
+> En Render **no hay red interna de Docker**, así que las URLs entre servicios son públicas:
+> - `NODE_API_URL` → apunta a la URL pública de la API Node.
+> - `PUBLIC_GO_API_URL` → apunta a la URL pública de la API Go.
+
+**Variables por servicio:**
+
+| Servicio | Variables de entorno |
+|----------|----------------------|
+| 🟩 Node | `PORT` · `JWT_SECRET` · `CORS_ORIGINS` |
+| 🐹 Go | `SERVER_PORT` · `JWT_SECRET` · `TOKEN_EXPIRY_MINUTES` · `AUTH_USER` · `AUTH_PASS` · `NODE_API_URL` · `CORS_ORIGINS` |
+| 🟦 Frontend | `PORT` · `PUBLIC_GO_API_URL` |
+
+> `JWT_SECRET` debe ser **el mismo** en Go y Node (validan el mismo token).
